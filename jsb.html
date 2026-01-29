@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق مداين</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; font-family: sans-serif; text-align: center; }
+        .container { max-width: 400px; margin-top: 50px; }
+        .card { border-radius: 20px; border: none; box-shadow: 0 5px 15px rgba(0,0,0,0.1); padding: 20px; }
+        .hide { display: none; }
+        .stat { padding: 10px; border-radius: 10px; color: white; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="loginScreen" class="container">
+        <div class="card">
+            <h3 class="text-primary mb-4">مداين</h3>
+            <input type="email" id="email" class="form-control mb-3" placeholder="الايميل: a@b.com">
+            <input type="password" id="password" class="form-control mb-3" placeholder="كلمة المرور">
+            <button onclick="handleAuth('login')" class="btn btn-primary w-100 mb-2">دخول</button>
+            <button onclick="handleAuth('register')" class="btn btn-outline-secondary w-100">تسجيل جديد</button>
+        </div>
+    </div>
+
+    <div id="appScreen" class="container mt-4 hide">
+        <div class="d-flex justify-content-between mb-3">
+            <h5 class="text-primary">سجل الديون</h5>
+            <button onclick="firebase.auth().signOut()" class="btn btn-sm btn-danger">خروج</button>
+        </div>
+        
+        <div class="row g-2 mb-3">
+            <div class="col-6"><div class="stat bg-primary">لي: <span id="totalToMe">0</span></div></div>
+            <div class="col-6"><div class="stat bg-danger">علي: <span id="totalOnMe">0</span></div></div>
+        </div>
+
+        <div class="card p-3 shadow-sm">
+            <input type="text" id="desc" class="form-control mb-2" placeholder="الاسم أو الوصف">
+            <input type="number" id="amount" class="form-control mb-2" placeholder="المبلغ">
+            <select id="type" class="form-select mb-2">
+                <option value="to_me">دين لي</option>
+                <option value="on_me">دين علي</option>
+            </select>
+            <button onclick="saveToFirestore()" class="btn btn-success w-100">حفظ العملية</button>
+        </div>
+        <div id="list" class="mt-4 text-end"></div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // إعداداتك من الصورة مع تنظيف المفاتيح من أي مسافات
+        const firebaseConfig = {
+          apiKey: "AIzaSyDncM8Rc0jLq3S1M_WqMbfXGMN-_IK-PY",
+          authDomain: "madin-ac5c9.firebaseapp.com",
+          projectId: "madin-ac5c9",
+          storageBucket: "madin-ac5c9.firebasestorage.app",
+          messagingSenderId: "1088716938693",
+          appId: "1:1088716938693:web:a9ae464aa5c6867fcf9bec"
+        };
+
+        // بدء التشغيل
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // مراقبة حالة المستخدم
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('loginScreen').classList.add('hide');
+                document.getElementById('appScreen').classList.remove('hide');
+                fetchData(user.uid);
+            } else {
+                document.getElementById('loginScreen').classList.remove('hide');
+                document.getElementById('appScreen').classList.add('hide');
+            }
+        });
+
+        // التعامل مع الدخول والتسجيل
+        function handleAuth(mode) {
+            const email = document.getElementById('email').value.trim();
+            const pass = document.getElementById('password').value;
+            
+            if (mode === 'register') {
+                auth.createUserWithEmailAndPassword(email, pass).catch(e => alert("فشل التسجيل: " + e.message));
+            } else {
+                auth.signInWithEmailAndPassword(email, pass).catch(e => alert("خطأ بالدخول: " + e.message));
+            }
+        }
+
+        // حفظ البيانات
+        function saveToFirestore() {
+            const desc = document.getElementById('desc').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const type = document.getElementById('type').value;
+            const uid = auth.currentUser.uid;
+
+            if (desc && amount) {
+                db.collection('madin_records').add({
+                    uid, desc, amount, type, time: new Date()
+                }).then(() => {
+                    document.getElementById('desc').value = '';
+                    document.getElementById('amount').value = '';
+                });
+            }
+        }
+
+        // عرض البيانات
+        function fetchData(uid) {
+            db.collection('madin_records').where("uid", "==", uid).onSnapshot(snap => {
+                let html = '', toMe = 0, onMe = 0;
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    if (d.type === 'to_me') toMe += d.amount; else onMe += d.amount;
+                    html += `<div class="p-2 border-bottom"><b>${d.desc}</b>: ${d.amount} ر.ي</div>`;
+                });
+                document.getElementById('list').innerHTML = html;
+                document.getElementById('totalToMe').innerText = toMe;
+                document.getElementById('totalOnMe').innerText = onMe;
+            });
+        }
+    </script>
+</body>
+</html>
